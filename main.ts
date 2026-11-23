@@ -22,68 +22,37 @@
 //    itself squirms: ear + worm. It rewards a second look, because
 //    the gross literal reading and the familiar everyday reading
 //    collide in one small word.
-// 5. Chosen rather than generic — a specific, named thing with a
-//    life of its own, not a filler word like thing or stuff, and
-//    not a pretty word picked for its sound alone.
 //
-// Rejected alternatives, weighed against the same brief: gobbledygook
-// (fun sound and self-referential, but 12 letters and still in the
-// "funny rare word" family); skedaddle and nincompoop (lively sound
-// and vivid, but no double meaning, so weaker on criterion 4);
-// onomatopoeia (meta wit about sound, but it calls up no image, so
-// weaker on criterion 3); snickerdoodle (vivid and fun, but its
-// second meaning is thin). Earworm is the only candidate strong on
-// criteria 2, 3 and 4 at once — and at 7 bytes it also wins the
-// exact-tie break, which prefers the smaller text.
-import * as fs from "node:fs";
-import * as path from "node:path";
+// Outside the grader's container, MAKEFUN_BOT_DIR and
+// MAKEFUN_OUTPUT_DIR stand in for /bot and /output:
+//   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
 
-// The single word this entry sends, and nothing else.
-const WORD = "earworm";
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-// Flood guard: the field is saturated with byte-identical copies of
-// these rare beautiful words, and a copy shares its rate with the
-// earlier receipt, so it can never win. If WORD is ever changed to
-// one of them, fail loudly here instead of shipping a duplicate.
-const FLOODED = new Set([
-  "petrichor", "defenestration", "vellichor", "psithurism",
-  "apricity", "borborygmus", "susurrus", "syzygy", "murmuration",
-  "sonder", "kerfuffle", "zugzwang", "quockerwodger", "chrysalism",
-]);
-if (FLOODED.has(WORD.toLowerCase())) {
-  throw new Error(`word "${WORD}" is flooded in the field, pick another`);
+const WORD = 'earworm';
+
+const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const DEST = join(OUTPUT_DIR, 'entry.txt');
+
+mkdirSync(OUTPUT_DIR, { recursive: true });
+try {
+  writeFileSync(DEST, WORD, 'utf8');
+} catch (err) {
+  console.error(`entry.txt could not be written to ${OUTPUT_DIR}: ${(err as Error).message}`);
+  process.exit(1);
 }
 
-// Gate: /output/entry.txt must be UTF-8 text of 1 to 24 characters,
-// counted as Unicode code points, not only white space, and exactly
-// one word — no spaces, no punctuation, no newline. Any violation
-// throws before anything is written, so a bad entry can never be
-// graded.
-const codePoints = [...WORD].length;
-if (codePoints < 1 || codePoints > 24) {
-  throw new Error(`word is ${codePoints} code points, outside the 1-24 gate`);
+// Read the file back: the gate reads entry.txt exactly as submitted,
+// so a write that silently truncated or garbled the word must fail here.
+let written: string;
+try {
+  written = readFileSync(DEST, 'utf8');
+} catch (err) {
+  console.error(`entry.txt could not be read back from ${DEST}: ${(err as Error).message}`);
+  process.exit(1);
 }
-if (WORD.trim().length === 0) {
-  throw new Error("word must not be whitespace-only");
-}
-if (/\s/.test(WORD)) {
-  throw new Error("word must contain no whitespace");
-}
-if (!/^[A-Za-z]+$/.test(WORD)) {
-  throw new Error("word must be plain letters only, no punctuation");
-}
-
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
-const outPath = path.join(outDir, "entry.txt");
-fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(outPath, WORD, "utf8");
-
-// Read-back check: the file on disk must be byte-identical to the
-// gated string, so a partial or altered write is caught here.
-const written = fs.readFileSync(outPath, "utf8");
 if (written !== WORD) {
-  throw new Error("entry.txt on disk does not match the word");
+  console.error(`entry.txt check failed: expected exactly ${JSON.stringify(WORD)}, got ${JSON.stringify(written)}`);
+  process.exit(1);
 }
-
-console.log(WORD);
-console.log(`(earworm: ${codePoints} code points, ${Buffer.byteLength(WORD, "utf8")} bytes)`);
